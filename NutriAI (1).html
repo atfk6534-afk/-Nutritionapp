@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#3D9142"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="NutriAI"/>
+  <title>NutriAI — تطبيق التغذية الذكي</title>
+  <!-- PWA Manifest inline -->
+  <link rel="manifest" href="data:application/json,{
+    &quot;name&quot;:&quot;NutriAI Pro&quot;,
+    &quot;short_name&quot;:&quot;NutriAI&quot;,
+    &quot;description&quot;:&quot;تطبيق تتبع السعرات الذكي&quot;,
+    &quot;start_url&quot;:&quot;.&quot;,
+    &quot;display&quot;:&quot;standalone&quot;,
+    &quot;background_color&quot;:&quot;#F0F2F5&quot;,
+    &quot;theme_color&quot;:&quot;#3D9142&quot;,
+    &quot;orientation&quot;:&quot;portrait&quot;,
+    &quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%233D9142'/%3E%3Ctext y='.9em' font-size='65' x='15'%3E🥗%3C/text%3E%3C/svg%3E&quot;,&quot;sizes&quot;:&quot;512x512&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]
+  }"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body,#root{height:100%;width:100%;overflow:hidden;}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:#F0F2F5;}
+    #loading{position:fixed;inset:0;background:#3D9142;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;z-index:9999;transition:opacity .5s;}
+    #loading.hide{opacity:0;pointer-events:none;}
+    #loading-icon{font-size:72px;margin-bottom:20px;animation:spin2 2s linear infinite;}
+    @keyframes spin2{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+  <div id="loading">
+    <div id="loading-icon">🥗</div>
+    <div style="font-size:22px;font-weight:800;margin-bottom:8px">NutriAI</div>
+    <div style="font-size:14px;opacity:.8">جاري التحميل...</div>
+  </div>
+  <div id="root"></div>
+
+  <!-- React + ReactDOM + Babel via CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
+const T = {
+  ar: {
+    welcome:"مرحباً بك في",welcomeSub:"دعنا نتعرف عليك لنبني خطتك الشخصية",
+    next:"التالي",back:"رجوع",finish:"ابدأ رحلتي",analyzing:"الذكاء الاصطناعي يحلل بياناتك...",
+    yourPlan:"خطتك الشخصية جاهزة!",startApp:"ابدأ التطبيق",
+    q_lang:"اختر لغتك",q_name:"ما اسمك؟",q_name_ph:"أدخل اسمك",
+    q_age:"كم عمرك؟",q_age_ph:"مثال: 28",
+    q_gender:"ما جنسك؟",male:"ذكر",female:"أنثى",
+    q_weight:"ما وزنك الحالي؟",q_weight_ph:"بالكيلوجرام",
+    q_height:"ما طولك؟",q_height_ph:"بالسنتيمتر",
+    q_goal:"ما هدفك الأساسي؟",
+    goal_lose:"خسارة الدهون 🔥",goal_muscle:"بناء العضلات 💪",goal_maintain:"الحفاظ على الوزن ⚖️",goal_perform:"تحسين الأداء الرياضي ⚡",
+    q_activity:"ما مستوى نشاطك اليومي؟",
+    act_sed:"خامل — عمل مكتبي أو لا تمارس رياضة",act_light:"نشاط خفيف — رياضة 1-3 مرات أسبوعياً",act_active:"نشيط — رياضة 4-5 مرات أسبوعياً",act_very:"نشيط جداً — رياضة يومية أو عمل جسدي",
+    q_diet:"ما نوع غذائك المفضل؟",
+    diet_balanced:"متوازن 🥗",diet_highp:"غني بالبروتين 🥩",diet_lowc:"قليل الكربوهيدرات 🥑",diet_keto:"كيتو 🧀",diet_med:"متوسطي 🫒",
+    q_meals:"كم وجبة تأكل يومياً؟",meals_2:"وجبتان",meals_3:"3 وجبات",meals_4:"4 وجبات",meals_5:"5+ وجبات",
+    q_water:"كم لتر ماء تشرب يومياً؟",water_less1:"أقل من لتر",water_1_2:"1-2 لتر",water_2_3:"2-3 لتر",water_more3:"أكثر من 3 لتر",
+    q_health:"هل لديك أي حالة صحية؟",health_none:"لا شيء",health_diabetes:"سكري",health_bp:"ضغط دم",health_heart:"أمراض قلب",health_kidney:"كلى",
+    q_allergies:"هل لديك حساسية غذائية؟",allergy_none:"لا يوجد",allergy_gluten:"جلوتين",allergy_dairy:"ألبان",allergy_nuts:"مكسرات",allergy_eggs:"بيض",
+    step:"خطوة",of:"من",
+    res_bmr:"معدل الأيض الأساسي",res_tdee:"إجمالي الطاقة اليومية",res_goal_cal:"هدف السعرات اليومي",res_protein:"البروتين اليومي",res_carbs:"الكربوهيدرات",res_fat:"الدهون",res_water:"هدف الماء",
+    res_bmi:"مؤشر كتلة الجسم",res_ideal:"وزنك المثالي",res_time:"الوقت المتوقع للهدف",
+    bmi_thin:"نحيف",bmi_normal:"طبيعي",bmi_over:"زيادة وزن",bmi_obese:"سمنة",
+    goodMorning:"صباح الخير",goodAfternoon:"مساء الخير",goodEvening:"مساء النور",
+    calories:"سعرات",remaining:"متبقية",consumed:"مستهلكة",burned:"محروقة",
+    protein:"بروتين",carbs:"كربوهيدرات",fat:"دهون",fiber:"ألياف",
+    breakfast:"إفطار",lunch:"غداء",dinner:"عشاء",snacks:"سناكس",
+    addFood:"إضافة طعام",searchFoods:"ابحث عن طعام...",
+    camera:"كاميرا",voice:"صوت",scan:"بحث",manual:"يدوي",
+    home:"الرئيسية",diary:"اليومية",coach:"المدرب",plans:"الخطط",profile:"حسابي",
+    water:"ماء",glasses:"أكواب",addWater:"+ إضافة كوب",streak:"أيام متتالية",
+    aiCoach:"مدرب الذكاء",insight:"تحليل",suggestion:"اقتراح",warning:"تنبيه",
+    mealPlan:"خطة وجبات",settings:"الإعدادات",theme:"المظهر",language:"اللغة",
+    cancel:"إلغاء",add:"إضافة",serving:"حصة",
+    tapToSpeak:"اضغط للتحدث",listening:"يستمع...",
+    cameraTitle:"ماسح الطعام الذكي",pointCamera:"وجّه الكاميرا نحو طعامك",
+    analyzing2:"جاري التحليل...",detected:"تم اكتشاف الطعام!",
+    nutritionFacts:"القيم الغذائية",logFood:"تسجيل الطعام",
+    photoMode:"صورة ذكية",barcodeMode:"باركود",
+    permissionNeeded:"إذن مطلوب",enableCamera:"السماح بالكاميرا من إعدادات المتصفح",enableMic:"السماح بالميكروفون من إعدادات المتصفح",
+    noFoodsFound:"لا توجد نتائج",tryAgain:"جرب بحثاً آخر",
+    weeklyReport:"التقرير الأسبوعي",
+    aiGenerating:"الذكاء الاصطناعي يولد خطتك...",
+    aiPlanReady:"خطتك الشخصية جاهزة",
+    regenerate:"إعادة توليد",
+    totalCal:"إجمالي السعرات",
+  },
+  en: {
+    welcome:"Welcome to",welcomeSub:"Let's learn about you to build your personalized plan",
+    next:"Next",back:"Back",finish:"Start My Journey",analyzing:"AI is analyzing your data...",
+    yourPlan:"Your Personalized Plan is Ready!",startApp:"Launch App",
+    q_lang:"Choose your language",q_name:"What's your name?",q_name_ph:"Enter your name",
+    q_age:"How old are you?",q_age_ph:"e.g. 28",
+    q_gender:"What's your gender?",male:"Male",female:"Female",
+    q_weight:"What's your current weight?",q_weight_ph:"in kilograms",
+    q_height:"What's your height?",q_height_ph:"in centimeters",
+    q_goal:"What's your primary goal?",
+    goal_lose:"Lose Fat 🔥",goal_muscle:"Build Muscle 💪",goal_maintain:"Maintain Weight ⚖️",goal_perform:"Improve Performance ⚡",
+    q_activity:"What's your daily activity level?",
+    act_sed:"Sedentary — desk job or little exercise",act_light:"Lightly active — exercise 1-3x/week",act_active:"Active — exercise 4-5x/week",act_very:"Very active — daily exercise or physical job",
+    q_diet:"What's your preferred diet type?",
+    diet_balanced:"Balanced 🥗",diet_highp:"High Protein 🥩",diet_lowc:"Low Carb 🥑",diet_keto:"Keto 🧀",diet_med:"Mediterranean 🫒",
+    q_meals:"How many meals do you eat daily?",meals_2:"2 meals",meals_3:"3 meals",meals_4:"4 meals",meals_5:"5+ meals",
+    q_water:"How much water do you drink daily?",water_less1:"Less than 1L",water_1_2:"1-2 L",water_2_3:"2-3 L",water_more3:"More than 3L",
+    q_health:"Any health conditions?",health_none:"None",health_diabetes:"Diabetes",health_bp:"High Blood Pressure",health_heart:"Heart Disease",health_kidney:"Kidney Issues",
+    q_allergies:"Any food allergies?",allergy_none:"None",allergy_gluten:"Gluten",allergy_dairy:"Dairy",allergy_nuts:"Nuts",allergy_eggs:"Eggs",
+    step:"Step",of:"of",
+    res_bmr:"Basal Metabolic Rate",res_tdee:"Total Daily Energy",res_goal_cal:"Daily Calorie Goal",res_protein:"Daily Protein",res_carbs:"Carbohydrates",res_fat:"Fats",res_water:"Water Goal",
+    res_bmi:"BMI",res_ideal:"Ideal Weight",res_time:"Estimated Goal Time",
+    bmi_thin:"Underweight",bmi_normal:"Normal",bmi_over:"Overweight",bmi_obese:"Obese",
+    goodMorning:"Good morning",goodAfternoon:"Good afternoon",goodEvening:"Good evening",
+    calories:"Calories",remaining:"Remaining",consumed:"Consumed",burned:"Burned",
+    protein:"Protein",carbs:"Carbs",fat:"Fat",fiber:"Fiber",
+    breakfast:"Breakfast",lunch:"Lunch",dinner:"Dinner",snacks:"Snacks",
+    addFood:"Add Food",searchFoods:"Search foods...",
+    camera:"Camera",voice:"Voice",scan:"Search",manual:"Manual",
+    home:"Home",diary:"Diary",coach:"Coach",plans:"Plans",profile:"Profile",
+    water:"Water",glasses:"glasses",addWater:"+ Add Glass",streak:"day streak",
+    aiCoach:"AI Coach",insight:"Insight",suggestion:"Suggestion",warning:"Warning",
+    mealPlan:"Meal Plan",settings:"Settings",theme:"Theme",language:"Language",
+    cancel:"Cancel",add:"Add",serving:"Serving",
+    tapToSpeak:"Tap to speak",listening:"Listening...",
+    cameraTitle:"AI Food Scanner",pointCamera:"Point camera at your food",
+    analyzing2:"Analyzing...",detected:"Food Detected!",
+    nutritionFacts:"Nutrition Facts",logFood:"Log Food",
+    photoMode:"AI Photo",barcodeMode:"Barcode",
+    permissionNeeded:"Permission Needed",enableCamera:"Allow camera in browser settings",enableMic:"Allow microphone in browser settings",
+    noFoodsFound:"No foods found",tryAgain:"Try another search",
+    weeklyReport:"Weekly Report",
+    aiGenerating:"AI is generating your plan...",
+    aiPlanReady:"Your Personal Plan is Ready",
+    regenerate:"Regenerate",
+    totalCal:"Total Calories",
+  }
+};
+
+// ─── FOOD DB ──────────────────────────────────────────────────────────────────
+const FOODS = [
+  {id:1,name:"Grilled Chicken Breast",nameAr:"صدر دجاج مشوي",cal:165,p:31,c:0,f:3.6,srv:"100g",emoji:"🍗"},
+  {id:2,name:"Brown Rice",nameAr:"أرز بني",cal:216,p:5,c:45,f:1.8,srv:"1 cup",emoji:"🍚"},
+  {id:3,name:"Avocado",nameAr:"أفوكادو",cal:320,p:4,c:17,f:29,srv:"1 whole",emoji:"🥑"},
+  {id:4,name:"Greek Yogurt",nameAr:"زبادي يوناني",cal:100,p:17,c:6,f:0.7,srv:"170g",emoji:"🥛"},
+  {id:5,name:"Almonds",nameAr:"لوز",cal:164,p:6,c:6,f:14,srv:"28g",emoji:"🥜"},
+  {id:6,name:"Banana",nameAr:"موزة",cal:105,p:1.3,c:27,f:0.4,srv:"1 med",emoji:"🍌"},
+  {id:7,name:"Salmon Fillet",nameAr:"سمك سلمون",cal:208,p:28,c:0,f:10,srv:"100g",emoji:"🐟"},
+  {id:8,name:"Sweet Potato",nameAr:"بطاطا حلوة",cal:103,p:2.3,c:24,f:0.1,srv:"1 med",emoji:"🍠"},
+  {id:9,name:"Spinach",nameAr:"سبانخ",cal:7,p:0.9,c:1.1,f:0.1,srv:"1 cup",emoji:"🥬"},
+  {id:10,name:"Eggs",nameAr:"بيض",cal:155,p:13,c:1.1,f:11,srv:"2 large",emoji:"🥚"},
+  {id:11,name:"Oatmeal",nameAr:"شوفان",cal:150,p:5,c:27,f:3,srv:"½ cup",emoji:"🥣"},
+  {id:12,name:"Ful Medames",nameAr:"فول مدمس",cal:187,p:14,c:28,f:0.6,srv:"1 cup",emoji:"🫘"},
+  {id:13,name:"Koshari",nameAr:"كشري",cal:340,p:13,c:62,f:5,srv:"1 bowl",emoji:"🍲"},
+  {id:14,name:"Falafel",nameAr:"فلافل",cal:333,p:13,c:32,f:18,srv:"5 pcs",emoji:"🧆"},
+  {id:15,name:"Blueberries",nameAr:"توت أزرق",cal:84,p:1.1,c:21,f:0.5,srv:"1 cup",emoji:"🫐"},
+  {id:16,name:"Whole Wheat Bread",nameAr:"خبز أسمر",cal:69,p:3.6,c:12,f:1,srv:"1 slice",emoji:"🍞"},
+  {id:17,name:"Tuna (canned)",nameAr:"تونة معلبة",cal:116,p:26,c:0,f:1,srv:"100g",emoji:"🐟"},
+  {id:18,name:"Lentil Soup",nameAr:"شوربة عدس",cal:230,p:18,c:40,f:0.8,srv:"1 bowl",emoji:"🍵"},
+  {id:19,name:"Apple",nameAr:"تفاحة",cal:95,p:0.5,c:25,f:0.3,srv:"1 med",emoji:"🍎"},
+  {id:20,name:"Mixed Salad",nameAr:"سلطة خضراء",cal:50,p:2,c:8,f:1,srv:"1 bowl",emoji:"🥗"},
+  {id:21,name:"Cottage Cheese",nameAr:"جبن قريش",cal:206,p:28,c:8,f:5,srv:"1 cup",emoji:"🧀"},
+  {id:22,name:"Peanut Butter",nameAr:"زبدة الفول",cal:188,p:8,c:6,f:16,srv:"2 tbsp",emoji:"🥜"},
+  {id:23,name:"Orange",nameAr:"برتقالة",cal:62,p:1.2,c:15,f:0.2,srv:"1 med",emoji:"🍊"},
+  {id:24,name:"White Rice",nameAr:"أرز أبيض",cal:242,p:4.4,c:53,f:0.4,srv:"1 cup",emoji:"🍚"},
+];
+
+const WEEK_DAYS_AR = ["إث","ثل","أر","خم","جم","سب","أح"];
+const WEEK_DAYS_EN = ["M","T","W","T","F","S","S"];
+
+// ─── CALCULATION ENGINE ───────────────────────────────────────────────────────
+function calcPlan(p) {
+  const w = parseFloat(p.weight)||75, h = parseFloat(p.height)||170, a = parseInt(p.age)||25;
+  const bmr = p.gender==="female"
+    ? 447.6 + (9.2*w) + (3.1*h) - (4.3*a)
+    : 88.36 + (13.4*w) + (4.8*h) - (5.7*a);
+  const mult = {sed:1.2,light:1.375,active:1.55,very:1.725}[p.activity]||1.55;
+  const tdee = Math.round(bmr * mult);
+  const goalAdj = {lose:-500,muscle:+300,maintain:0,perform:+200}[p.goal]||0;
+  const calGoal = Math.max(1200, tdee + goalAdj);
+  const bmi = w / ((h/100)**2);
+  const idealMin = 18.5 * (h/100)**2, idealMax = 24.9 * (h/100)**2;
+  const bmiLabel = bmi<18.5?"thin":bmi<25?"normal":bmi<30?"over":"obese";
+
+  // Macro split by diet type
+  const splits = {
+    balanced:{p:0.30,c:0.45,f:0.25},
+    highp:{p:0.40,c:0.35,f:0.25},
+    lowc:{p:0.35,c:0.20,f:0.45},
+    keto:{p:0.25,c:0.05,f:0.70},
+    med:{p:0.20,c:0.50,f:0.30},
+  };
+  const split = splits[p.diet]||splits.balanced;
+  const protein = Math.round((calGoal * split.p)/4);
+  const carbs   = Math.round((calGoal * split.c)/4);
+  const fat     = Math.round((calGoal * split.f)/9);
+
+  const waterGoal = Math.max(2, (w*0.033 + (p.activity==="very"?0.7:p.activity==="active"?0.5:0.2)));
+  const weightDiff = Math.abs(w - (idealMin+idealMax)/2);
+  const weeksEst   = p.goal==="maintain"?0:Math.round(weightDiff/(goalAdj<0?0.5:0.3));
+
+  return {
+    bmr:Math.round(bmr), tdee, calGoal, protein, carbs, fat,
+    waterGoal:Math.round(waterGoal*10)/10,
+    bmi:Math.round(bmi*10)/10, bmiLabel,
+    idealWeight:`${Math.round(idealMin)}-${Math.round(idealMax)} kg`,
+    weeksEst,
+  };
+}
+
+// ─── AI MEAL PLAN GENERATOR (via Anthropic API) ───────────────────────────────
+async function generateAIMealPlan(profile, plan, lang) {
+  const isAr = lang==="ar";
+  const prompt = isAr
+    ? `أنت خبير تغذية. بناءً على هذه البيانات الشخصية:
+- الاسم: ${profile.name}
+- العمر: ${profile.age} سنة، الجنس: ${profile.gender==="male"?"ذكر":"أنثى"}
+- الوزن: ${profile.weight}كج، الطول: ${profile.height}سم
+- الهدف: ${profile.goal}، النشاط: ${profile.activity}
+- نوع الغذاء: ${profile.diet}
+- هدف السعرات: ${plan.calGoal} سعرة يومياً
+- البروتين: ${plan.protein}ج، الكربوهيدرات: ${plan.carbs}ج، الدهون: ${plan.fat}ج
+- حساسية: ${profile.allergies}، حالة صحية: ${profile.health}
+
+اصنع خطة وجبات ليوم واحد مناسبة ثقافياً للمنطقة العربية بالعربية فقط.
+أجب بـ JSON فقط بدون أي نص إضافي بهذا الشكل بالضبط:
+{"breakfast":{"name":"اسم الوجبة","items":["عنصر 1","عنصر 2"],"calories":400,"protein":30,"carbs":45,"fat":10,"emoji":"🍳"},"lunch":{"name":"اسم الوجبة","items":["عنصر 1","عنصر 2"],"calories":550,"protein":40,"carbs":55,"fat":15,"emoji":"🍚"},"dinner":{"name":"اسم الوجبة","items":["عنصر 1","عنصر 2"],"calories":500,"protein":35,"carbs":50,"fat":14,"emoji":"🍲"},"snack":{"name":"اسم الوجبة","items":["عنصر 1"],"calories":200,"protein":10,"carbs":25,"fat":5,"emoji":"🍎"},"tips":["نصيحة 1","نصيحة 2","نصيحة 3"]}`
+    : `You are a certified nutritionist. Based on this profile:
+- Name: ${profile.name}, Age: ${profile.age}, Gender: ${profile.gender}
+- Weight: ${profile.weight}kg, Height: ${profile.height}cm
+- Goal: ${profile.goal}, Activity: ${profile.activity}
+- Diet type: ${profile.diet}
+- Daily calorie goal: ${plan.calGoal} kcal
+- Protein: ${plan.protein}g, Carbs: ${plan.carbs}g, Fat: ${plan.fat}g
+- Allergies: ${profile.allergies}, Health: ${profile.health}
+
+Create a realistic one-day meal plan. Reply with JSON ONLY, no extra text:
+{"breakfast":{"name":"meal name","items":["item1","item2"],"calories":400,"protein":30,"carbs":45,"fat":10,"emoji":"🍳"},"lunch":{"name":"meal name","items":["item1","item2"],"calories":550,"protein":40,"carbs":55,"fat":15,"emoji":"🥗"},"dinner":{"name":"meal name","items":["item1","item2"],"calories":500,"protein":35,"carbs":50,"fat":14,"emoji":"🍽️"},"snack":{"name":"meal name","items":["item1"],"calories":200,"protein":10,"carbs":25,"fat":5,"emoji":"🍎"},"tips":["tip1","tip2","tip3"]}`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-20250514",
+      max_tokens:1000,
+      messages:[{role:"user",content:prompt}]
+    })
+  });
+  const data = await res.json();
+  const text = data.content?.find(b=>b.type==="text")?.text||"{}";
+  const clean = text.replace(/```json|```/g,"").trim();
+  return JSON.parse(clean);
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [screen, setScreen] = useState("onboarding"); // onboarding | analyzing | result | app
+  const [lang, setLang] = useState("ar");
+  const [obStep, setObStep] = useState(0);
+  const [profile, setProfile] = useState({
+    name:"",age:"",gender:"male",weight:"",height:"",
+    goal:"lose",activity:"active",diet:"balanced",
+    meals:"3",water:"1_2",health:"none",allergies:"none"
+  });
+  const [calcResult, setCalcResult] = useState(null);
+  const [aiMealPlan, setAiMealPlan] = useState(null);
+  const [aiPlanLoading, setAiPlanLoading] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState(0);
+  const [theme, setTheme] = useState("light");
+  const [tab, setTab] = useState("home");
+  const [modal, setModal] = useState(null);
+  const [selectedMeal, setSelectedMeal] = useState("breakfast");
+  const [loggedFoods, setLoggedFoods] = useState([]);
+  const [water, setWater] = useState(0);
+  const [insightIdx, setInsightIdx] = useState(0);
+  const [searchQ, setSearchQ] = useState("");
+  const [detailFood, setDetailFood] = useState(null);
+  const [detailQty, setDetailQty] = useState(1);
+
+  // Camera
+  const [camStream, setCamStream] = useState(null);
+  const [camAnalyzing, setCamAnalyzing] = useState(false);
+  const [camResult, setCamResult] = useState(null);
+  const [camError, setCamError] = useState(null);
+  const [camCapture, setCamCapture] = useState(null);
+  const [camMode, setCamMode] = useState("photo");
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  // Voice
+  const [micListening, setMicListening] = useState(false);
+  const [micTranscript, setMicTranscript] = useState("");
+  const [micResult, setMicResult] = useState(null);
+  const [micError, setMicError] = useState(null);
+  const [micVolume, setMicVolume] = useState(0);
+  const recognitionRef = useRef(null);
+  const micStreamRef = useRef(null);
+  const analyzerRef = useRef(null);
+  const animFrameRef = useRef(null);
+
+  const t = T[lang]||T.ar;
+  const isRTL = lang==="ar";
+
+  // Onboarding steps config
+  const steps = [
+    {id:"lang"},
+    {id:"name"},
+    {id:"age"},
+    {id:"gender_weight_height"},
+    {id:"goal"},
+    {id:"activity"},
+    {id:"diet"},
+    {id:"meals_water"},
+    {id:"health_allergies"},
+  ];
+
+  const totalSteps = steps.length;
+
+  // ─── START ANALYZE ─────────────────────────────────────────────────────────
+  const startAnalyze = async () => {
+    setScreen("analyzing");
+    setAnalyzeProgress(0);
+    const result = calcPlan(profile);
+    setCalcResult(result);
+
+    // Animate progress bar
+    let p = 0;
+    const iv = setInterval(()=>{
+      p += Math.random()*8+3;
+      if(p>=95){ clearInterval(iv); setAnalyzeProgress(95); }
+      else setAnalyzeProgress(Math.round(p));
+    }, 120);
+
+    // Generate AI meal plan
+    try {
+      const plan = await generateAIMealPlan(profile, result, lang);
+      setAiMealPlan(plan);
+    } catch(e) {
+      // Fallback plan
+      setAiMealPlan(lang==="ar" ? {
+        breakfast:{name:"شوفان بالموز والعسل",items:["½ كوب شوفان","موزة","ملعقة عسل","حليب قليل الدسم"],calories:380,protein:12,carbs:68,fat:7,emoji:"🥣"},
+        lunch:{name:"صدر دجاج مشوي مع أرز بني",items:["150ج دجاج مشوي","¾ كوب أرز بني","سلطة خضراء"],calories:520,protein:42,carbs:52,fat:9,emoji:"🍗"},
+        dinner:{name:"سمك مشوي مع خضار",items:["سمك بلطي 150ج","خضار مشوية","ليمون وأعشاب"],calories:380,protein:38,carbs:18,fat:11,emoji:"🐟"},
+        snack:{name:"زبادي يوناني باللوز",items:["زبادي يوناني 170ج","حفنة لوز"],calories:220,protein:18,carbs:9,fat:12,emoji:"🥛"},
+        tips:[lang==="ar"?"تناول وجباتك في أوقات منتظمة":"Eat at regular times",lang==="ar"?"اشرب ماء قبل كل وجبة":"Drink water before meals",lang==="ar"?"تجنب السكريات المضافة":"Avoid added sugars"]
+      } : {
+        breakfast:{name:"Oatmeal with Banana & Honey",items:["½ cup oats","1 banana","1 tsp honey","low-fat milk"],calories:380,protein:12,carbs:68,fat:7,emoji:"🥣"},
+        lunch:{name:"Grilled Chicken with Brown Rice",items:["150g grilled chicken","¾ cup brown rice","green salad"],calories:520,protein:42,carbs:52,fat:9,emoji:"🍗"},
+        dinner:{name:"Grilled Fish with Veggies",items:["150g fish fillet","grilled vegetables","lemon & herbs"],calories:380,protein:38,carbs:18,fat:11,emoji:"🐟"},
+        snack:{name:"Greek Yogurt & Almonds",items:["170g Greek yogurt","handful almonds"],calories:220,protein:18,carbs:9,fat:12,emoji:"🥛"},
+        tips:["Eat meals at regular times","Drink water before meals","Avoid added sugars"]
+      });
+    }
+
+    clearInterval(iv);
+    setAnalyzeProgress(100);
+    setTimeout(()=>setScreen("result"),600);
+  };
+
+  // Computed values for app
+  const plan = calcResult || calcPlan(profile);
+  const totalCal = loggedFoods.reduce((s,f)=>s+f.cal*f.qty,0);
+  const totalP   = loggedFoods.reduce((s,f)=>s+f.p*f.qty,0);
+  const totalC   = loggedFoods.reduce((s,f)=>s+f.c*f.qty,0);
+  const totalF   = loggedFoods.reduce((s,f)=>s+f.f*f.qty,0);
+  const pct = (v,g)=>Math.min(100,Math.round((v/g)*100));
+  const foodName = f => lang==="ar"&&f.nameAr?f.nameAr:f.name;
+  const filteredFoods = FOODS.filter(f=>
+    f.name.toLowerCase().includes(searchQ.toLowerCase())||
+    (f.nameAr&&f.nameAr.includes(searchQ))
+  );
+  const hour = new Date().getHours();
+  const greeting = hour<12?t.goodMorning:hour<17?t.goodAfternoon:t.goodEvening;
+  const WEEK_CAL = [1820,2150,1680,1950,2200,1750,Math.round(totalCal)||1420];
+
+  useEffect(()=>{
+    const iv=setInterval(()=>setInsightIdx(i=>(i+1)%AI_INSIGHTS.length),6000);
+    return()=>clearInterval(iv);
+  },[]);
+
+  const AI_INSIGHTS = lang==="ar"?[
+    {type:"insight",icon:"🎯",text:"مستوى البروتين ممتاز اليوم! استمر."},
+    {type:"warning",icon:"⚠️",text:`أنت أقل من هدفك بـ ${Math.max(0,plan.calGoal-Math.round(totalCal))} سعرة. فكر في وجبة خفيفة.`},
+    {type:"suggestion",icon:"💧",text:`اشرب ${Math.max(0,plan.waterGoal-water).toFixed(1)} لتر ماء إضافي اليوم.`},
+    {type:"insight",icon:"🔥",text:"الاستمرارية تبني عادات صحية رائعة!"},
+    {type:"suggestion",icon:"🥦",text:"إضافة خضروات ستحسن درجة التغذية لديك."},
+  ]:[
+    {type:"insight",icon:"🎯",text:"Protein intake is on track today! Keep it up."},
+    {type:"warning",icon:"⚠️",text:`You're ${Math.max(0,plan.calGoal-Math.round(totalCal))} calories under goal. Consider a snack.`},
+    {type:"suggestion",icon:"💧",text:`Drink ${Math.max(0,plan.waterGoal-water).toFixed(1)}L more water today.`},
+    {type:"insight",icon:"🔥",text:"Consistency builds great habits. Keep going!"},
+    {type:"suggestion",icon:"🥦",text:"Adding vegetables boosts your nutrition score."},
+  ];
+
+  // ─── COLORS ───────────────────────────────────────────────────────────────────
+  const C = theme==="dark"?{
+    bg:"#0F0F14",surf:"#1A1A24",surf2:"#22222F",border:"rgba(255,255,255,0.08)",
+    text:"#F0EEF8",muted:"#666680",accent:"#4CAF50",accentBg:"rgba(76,175,80,0.12)",
+    accent2:"#2196F3",red:"#F44336",gold:"#FF9800",nav:"rgba(26,26,36,0.96)",obBg:"#0F0F14",
+  }:{
+    bg:"#F0F2F5",surf:"#FFFFFF",surf2:"#F5F6FA",border:"rgba(0,0,0,0.07)",
+    text:"#1A1A2E",muted:"#8A8AA0",accent:"#3D9142",accentBg:"rgba(61,145,66,0.10)",
+    accent2:"#1976D2",red:"#D32F2F",gold:"#E65100",nav:"rgba(255,255,255,0.97)",obBg:"#FFFFFF",
+  };
+
+  const css=`
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    ::-webkit-scrollbar{display:none;}
+    input,button,select{font-family:inherit;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+    @keyframes pulse2{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.92)}}
+    @keyframes scanLine{0%{top:5%}100%{top:90%}}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.15}}
+    @keyframes rippleOut{0%{transform:scale(.8);opacity:.4}100%{transform:scale(2.4);opacity:0}}
+    @keyframes progressFill{from{width:0%}to{width:100%}}
+    @keyframes bounceIn{0%{transform:scale(.8);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  `;
+
+  const card={background:C.surf,borderRadius:16,padding:"16px",border:`1px solid ${C.border}`,marginBottom:12};
+  const btn=(bg=C.accent,col="#fff")=>({background:bg,color:col,border:"none",borderRadius:12,padding:"14px 20px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8});
+  const outline=(col=C.accent)=>({background:"transparent",color:col,border:`2px solid ${col}`,borderRadius:12,padding:"12px 20px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8});
+
+  // ─── ONBOARDING ───────────────────────────────────────────────────────────────
+  const setP = (key,val) => setProfile(prev=>({...prev,[key]:val}));
+
+  const OptionCard = ({selected,onClick,children,icon})=>(
+    <button onClick={onClick} style={{
+      width:"100%",padding:"14px 16px",borderRadius:14,
+      border:`2px solid ${selected?C.accent:C.border}`,
+      background:selected?C.accentBg:C.surf2,
+      cursor:"pointer",display:"flex",alignItems:"center",gap:12,
+      marginBottom:10,transition:"all .15s",
+      color:selected?C.accent:C.text,
+    }}>
+      {icon&&<span style={{fontSize:22,flexShrink:0}}>{icon}</span>}
+      <span style={{fontSize:14,fontWeight:selected?700:500,textAlign:"start"}}>{children}</span>
+      {selected&&<span style={{marginLeft:"auto",fontSize:18,color:C.accent,flexShrink:0}}>✓</span>}
+    </button>
+  );
+
+  const NumberInput = ({value,onChange,placeholder,unit})=>(
+    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+      <input type="number" value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        style={{flex:1,padding:"14px 16px",borderRadius:12,border:`2px solid ${value?C.accent:C.border}`,
+          background:C.surf2,color:C.text,fontSize:18,fontWeight:700,outline:"none",
+          direction:"ltr",textAlign:"center"}}/>
+      {unit&&<span style={{fontSize:14,color:C.muted,flexShrink:0,fontWeight:600}}>{unit}</span>}
+    </div>
+  );
+
+  const renderObStep = ()=>{
+    const s = steps[obStep];
+    if(s.id==="lang") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:6}}>{t.q_lang}</div>
+        <div style={{height:16}}/>
+        {[{v:"ar",flag:"🇪🇬",label:"العربية"},{v:"en",flag:"🇺🇸",label:"English"}].map(l=>(
+          <OptionCard key={l.v} selected={lang===l.v} onClick={()=>setLang(l.v)} icon={l.flag}>{l.label}</OptionCard>
+        ))}
+      </div>
+    );
+    if(s.id==="name") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:6}}>{t.q_name}</div>
+        <div style={{fontSize:14,color:C.muted,marginBottom:20}}>👋</div>
+        <input type="text" value={profile.name} onChange={e=>setP("name",e.target.value)}
+          placeholder={t.q_name_ph}
+          style={{width:"100%",padding:"16px",borderRadius:12,border:`2px solid ${profile.name?C.accent:C.border}`,
+            background:C.surf2,color:C.text,fontSize:18,fontWeight:600,outline:"none",direction:isRTL?"rtl":"ltr"}}/>
+      </div>
+    );
+    if(s.id==="age") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:20}}>{t.q_age}</div>
+        <NumberInput value={profile.age} onChange={v=>setP("age",v)} placeholder={t.q_age_ph} unit={isRTL?"سنة":"yrs"}/>
+      </div>
+    );
+    if(s.id==="gender_weight_height") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>{t.q_gender}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+          {[{v:"male",icon:"♂️",l:t.male},{v:"female",icon:"♀️",l:t.female}].map(g=>(
+            <button key={g.v} onClick={()=>setP("gender",g.v)} style={{
+              padding:"16px",borderRadius:14,border:`2px solid ${profile.gender===g.v?C.accent:C.border}`,
+              background:profile.gender===g.v?C.accentBg:C.surf2,
+              cursor:"pointer",fontSize:13,fontWeight:700,
+              color:profile.gender===g.v?C.accent:C.muted,display:"flex",flexDirection:"column",alignItems:"center",gap:8,
+            }}><span style={{fontSize:28}}>{g.icon}</span>{g.l}</button>
+          ))}
+        </div>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>{t.q_weight}</div>
+          <NumberInput value={profile.weight} onChange={v=>setP("weight",v)} placeholder={t.q_weight_ph} unit="kg"/>
+        </div>
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>{t.q_height}</div>
+          <NumberInput value={profile.height} onChange={v=>setP("height",v)} placeholder={t.q_height_ph} unit="cm"/>
+        </div>
+      </div>
+    );
+    if(s.id==="goal") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>{t.q_goal}</div>
+        {[{v:"lose",l:t.goal_lose},{v:"muscle",l:t.goal_muscle},{v:"maintain",l:t.goal_maintain},{v:"perform",l:t.goal_perform}].map(o=>(
+          <OptionCard key={o.v} selected={profile.goal===o.v} onClick={()=>setP("goal",o.v)}>{o.l}</OptionCard>
+        ))}
+      </div>
+    );
+    if(s.id==="activity") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>{t.q_activity}</div>
+        {[{v:"sed",l:t.act_sed,icon:"🪑"},{v:"light",l:t.act_light,icon:"🚶"},{v:"active",l:t.act_active,icon:"🏃"},{v:"very",l:t.act_very,icon:"🏋️"}].map(o=>(
+          <OptionCard key={o.v} selected={profile.activity===o.v} onClick={()=>setP("activity",o.v)} icon={o.icon}>{o.l}</OptionCard>
+        ))}
+      </div>
+    );
+    if(s.id==="diet") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>{t.q_diet}</div>
+        {[{v:"balanced",l:t.diet_balanced},{v:"highp",l:t.diet_highp},{v:"lowc",l:t.diet_lowc},{v:"keto",l:t.diet_keto},{v:"med",l:t.diet_med}].map(o=>(
+          <OptionCard key={o.v} selected={profile.diet===o.v} onClick={()=>setP("diet",o.v)}>{o.l}</OptionCard>
+        ))}
+      </div>
+    );
+    if(s.id==="meals_water") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>{t.q_meals}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
+          {[{v:"2",l:t.meals_2},{v:"3",l:t.meals_3},{v:"4",l:t.meals_4},{v:"5",l:t.meals_5}].map(o=>(
+            <button key={o.v} onClick={()=>setP("meals",o.v)} style={{
+              padding:"14px",borderRadius:14,border:`2px solid ${profile.meals===o.v?C.accent:C.border}`,
+              background:profile.meals===o.v?C.accentBg:C.surf2,cursor:"pointer",
+              fontSize:13,fontWeight:700,color:profile.meals===o.v?C.accent:C.text,
+            }}>{o.l}</button>
+          ))}
+        </div>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>💧 {t.q_water}</div>
+        {[{v:"less1",l:t.water_less1},{v:"1_2",l:t.water_1_2},{v:"2_3",l:t.water_2_3},{v:"more3",l:t.water_more3}].map(o=>(
+          <OptionCard key={o.v} selected={profile.water===o.v} onClick={()=>setP("water",o.v)}>{o.l}</OptionCard>
+        ))}
+      </div>
+    );
+    if(s.id==="health_allergies") return(
+      <div style={{animation:"fadeUp .3s ease"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>🏥 {t.q_health}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:24}}>
+          {[{v:"none",l:t.health_none},{v:"diabetes",l:t.health_diabetes},{v:"bp",l:t.health_bp},{v:"heart",l:t.health_heart},{v:"kidney",l:t.health_kidney}].map(o=>(
+            <button key={o.v} onClick={()=>setP("health",o.v)} style={{
+              padding:"12px",borderRadius:12,border:`2px solid ${profile.health===o.v?C.accent:C.border}`,
+              background:profile.health===o.v?C.accentBg:C.surf2,cursor:"pointer",
+              fontSize:12,fontWeight:700,color:profile.health===o.v?C.accent:C.text,
+            }}>{o.l}</button>
+          ))}
+        </div>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:16}}>🚫 {t.q_allergies}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[{v:"none",l:t.allergy_none},{v:"gluten",l:t.allergy_gluten},{v:"dairy",l:t.allergy_dairy},{v:"nuts",l:t.allergy_nuts},{v:"eggs",l:t.allergy_eggs}].map(o=>(
+            <button key={o.v} onClick={()=>setP("allergies",o.v)} style={{
+              padding:"12px",borderRadius:12,border:`2px solid ${profile.allergies===o.v?C.accent:C.border}`,
+              background:profile.allergies===o.v?C.accentBg:C.surf2,cursor:"pointer",
+              fontSize:12,fontWeight:700,color:profile.allergies===o.v?C.accent:C.text,
+            }}>{o.l}</button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const canNext = ()=>{
+    const s=steps[obStep];
+    if(s.id==="name") return profile.name.trim().length>1;
+    if(s.id==="age") return profile.age>0&&profile.age<120;
+    if(s.id==="gender_weight_height") return profile.weight>0&&profile.height>0;
+    return true;
+  };
+
+  // ─── CAMERA ───────────────────────────────────────────────────────────────────
+  const openCamera = useCallback(async()=>{
+    setCamError(null);setCamResult(null);setCamAnalyzing(false);setCamCapture(null);
+    setModal("camera");
+    try{
+      const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}});
+      setCamStream(s);
+    }catch(e){setCamError(t.enableCamera);}
+  },[t]);
+
+  useEffect(()=>{
+    if(camStream&&videoRef.current){videoRef.current.srcObject=camStream;videoRef.current.play().catch(()=>{});}
+  },[camStream]);
+
+  const stopCamera=useCallback(()=>{
+    if(camStream)camStream.getTracks().forEach(tr=>tr.stop());
+    setCamStream(null);setCamResult(null);setCamAnalyzing(false);setCamError(null);setCamCapture(null);
+  },[camStream]);
+
+  const captureAndAnalyze=()=>{
+    if(!videoRef.current||!canvasRef.current)return;
+    const cv=canvasRef.current,vd=videoRef.current;
+    cv.width=vd.videoWidth||640;cv.height=vd.videoHeight||480;
+    cv.getContext("2d").drawImage(vd,0,0);
+    setCamCapture(cv.toDataURL("image/jpeg",0.8));
+    setCamAnalyzing(true);
+    setTimeout(()=>{setCamResult(FOODS[Math.floor(Math.random()*FOODS.length)]);setCamAnalyzing(false);},2500);
+  };
+
+  // ─── VOICE ────────────────────────────────────────────────────────────────────
+  const openVoice=()=>{setMicError(null);setMicResult(null);setMicTranscript("");setModal("voice");};
+
+  const startMicVis=async()=>{
+    try{
+      const s=await navigator.mediaDevices.getUserMedia({audio:true});
+      micStreamRef.current=s;
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      const src=ctx.createMediaStreamSource(s);
+      const an=ctx.createAnalyser();an.fftSize=256;
+      src.connect(an);analyzerRef.current=an;
+      const buf=new Uint8Array(an.frequencyBinCount);
+      const tick=()=>{an.getByteFrequencyData(buf);setMicVolume(buf.reduce((a,b)=>a+b,0)/buf.length);animFrameRef.current=requestAnimationFrame(tick);};
+      tick();
+    }catch(e){}
+  };
+  const stopMicVis=()=>{if(animFrameRef.current)cancelAnimationFrame(animFrameRef.current);if(micStreamRef.current)micStreamRef.current.getTracks().forEach(t=>t.stop());setMicVolume(0);};
+
+  const startListening=async()=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){setMicError("Speech recognition not supported. Use Chrome.");return;}
+    setMicError(null);setMicTranscript("");setMicResult(null);
+    await startMicVis();
+    const r=new SR();r.continuous=false;r.interimResults=true;r.lang=lang==="ar"?"ar-EG":"en-US";
+    r.onstart=()=>setMicListening(true);
+    r.onresult=e=>{
+      const tr=Array.from(e.results).map(x=>x[0].transcript).join("");
+      setMicTranscript(tr);
+      if(e.results[e.results.length-1].isFinal){setMicListening(false);stopMicVis();parseVoice(tr);}
+    };
+    r.onerror=e=>{setMicListening(false);stopMicVis();if(e.error==="not-allowed")setMicError(t.enableMic);else setMicError(`Error: ${e.error}`);};
+    r.onend=()=>{setMicListening(false);stopMicVis();};
+    recognitionRef.current=r;r.start();
+  };
+  const stopListening=()=>{if(recognitionRef.current)recognitionRef.current.stop();stopMicVis();setMicListening(false);};
+  const parseVoice=text=>{
+    const lo=text.toLowerCase();
+    let m=FOODS.find(f=>lo.includes(f.name.toLowerCase())||(f.nameAr&&lo.includes(f.nameAr)));
+    if(!m)m=FOODS.find(f=>f.name.split(" ").some(w=>w.length>3&&lo.includes(w.toLowerCase())));
+    setMicResult(m||null);
+    if(!m)setMicError(lang==="ar"?"لم يتعرف على طعام، حاول مجدداً":"No food recognized, try again.");
+  };
+
+  const logFood=(food,qty=1,meal=selectedMeal)=>{
+    setLoggedFoods(prev=>[...prev,{...food,qty,meal,lid:`${Date.now()}`}]);
+    setModal(null);setCamResult(null);setMicResult(null);setDetailFood(null);stopCamera();
+  };
+  const removeFood=lid=>setLoggedFoods(prev=>prev.filter(f=>f.lid!==lid));
+
+  // ─── CALORIE RING ──────────────────────────────────────────────────────────────
+  const CalRing=({val,goal,size=148,stroke=11})=>{
+    const r=(size-stroke)/2,c=2*Math.PI*r,p=Math.min(1,val/goal);
+    const ov=val>goal;
+    return(
+      <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
+        <defs>
+          <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={ov?C.red:C.accent}/><stop offset="100%" stopColor={ov?C.red:"#81C784"}/>
+          </linearGradient>
+        </defs>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.surf2} strokeWidth={stroke}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="url(#rg)" strokeWidth={stroke}
+          strokeLinecap="round" strokeDasharray={`${p*c} ${c}`}
+          style={{transition:"stroke-dasharray 1s cubic-bezier(.16,1,.3,1)"}}/>
+      </svg>
+    );
+  };
+
+  const MacroBar=({label,val,goal,color})=>(
+    <div style={{marginBottom:13}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <span style={{fontSize:12,color:C.muted,fontWeight:600}}>{label}</span>
+        <span style={{fontSize:12,fontWeight:700}}>{Math.round(val)}g <span style={{color:C.muted,fontWeight:400}}>/ {goal}g</span></span>
+      </div>
+      <div style={{height:6,borderRadius:3,background:C.surf2,overflow:"hidden"}}>
+        <div style={{height:"100%",width:`${pct(val,goal)}%`,background:color,borderRadius:3,transition:"width .8s cubic-bezier(.16,1,.3,1)"}}/>
+      </div>
+    </div>
+  );
+
+  const FoodItem=({food,showAdd=true})=>(
+    <div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:C.surf2,borderRadius:12,marginBottom:8,cursor:showAdd?"pointer":"default"}}
+      onClick={()=>{if(showAdd){setDetailFood(food);setDetailQty(1);setModal("foodDetail");}}}>
+      <div style={{width:44,height:44,borderRadius:12,background:C.accentBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{food.emoji}</div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{foodName(food)}</div>
+        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{food.srv} · P:{food.p}g C:{food.c}g</div>
+      </div>
+      <div style={{textAlign:"right",flexShrink:0}}>
+        <div style={{fontSize:15,fontWeight:800,color:C.accent}}>{food.cal}</div>
+        <div style={{fontSize:10,color:C.muted}}>kcal</div>
+      </div>
+      {showAdd&&<span style={{color:C.accent,fontSize:22,fontWeight:300,marginLeft:2}}>+</span>}
+    </div>
+  );
+
+  // ════════════════════════════════════════════════════════════════
+  // SCREEN: ONBOARDING
+  // ════════════════════════════════════════════════════════════════
+  if(screen==="onboarding") return(
+    <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",background:C.obBg,color:C.text,minHeight:"100vh",maxWidth:430,margin:"0 auto",direction:isRTL?"rtl":"ltr"}}>
+      <style>{css}</style>
+      {/* Top gradient */}
+      <div style={{background:`linear-gradient(135deg,${C.accent}18,${C.accent2}10)`,height:180,display:"flex",flexDirection:"column",justifyContent:"flex-end",padding:"0 24px 24px",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:"50%",background:`${C.accent}15`}}/>
+        <div style={{position:"absolute",top:10,left:-30,width:120,height:120,borderRadius:"50%",background:`${C.accent2}10`}}/>
+        <div style={{fontSize:13,fontWeight:700,color:C.accent,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4,position:"relative"}}>
+          {t.welcome} NutriAI ✨
+        </div>
+        <div style={{fontSize:22,fontWeight:800,lineHeight:1.3,position:"relative"}}>{t.welcomeSub}</div>
+        {/* Progress dots */}
+        <div style={{display:"flex",gap:6,marginTop:16,position:"relative"}}>
+          {steps.map((_,i)=>(
+            <div key={i} style={{height:4,flex:i===obStep?3:1,borderRadius:2,background:i<=obStep?C.accent:C.border,transition:"all .3s ease"}}/>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:C.muted,marginTop:6,position:"relative"}}>{t.step} {obStep+1} {t.of} {totalSteps}</div>
+      </div>
+
+      {/* Step content */}
+      <div style={{padding:"28px 24px 120px",overflowY:"auto",maxHeight:"calc(100vh - 180px)"}}>
+        {renderObStep()}
+      </div>
+
+      {/* Navigation */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,padding:"16px 24px 32px",background:C.obBg,borderTop:`1px solid ${C.border}`}}>
+        <div style={{display:"grid",gridTemplateColumns:obStep>0?"1fr 2fr":"1fr",gap:10}}>
+          {obStep>0&&(
+            <button onClick={()=>setObStep(s=>s-1)} style={{...outline(C.muted),padding:"12px"}}>
+              ← {t.back}
+            </button>
+          )}
+          <button
+            onClick={()=>{ if(obStep<totalSteps-1)setObStep(s=>s+1); else startAnalyze(); }}
+            disabled={!canNext()}
+            style={{...btn(),opacity:canNext()?1:.45,transition:"opacity .2s"}}>
+            {obStep===totalSteps-1?`🚀 ${t.finish}`:`${t.next} →`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ════════════════════════════════════════════════════════════════
+  // SCREEN: ANALYZING
+  // ════════════════════════════════════════════════════════════════
+  if(screen==="analyzing") return(
+    <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",background:C.obBg,color:C.text,minHeight:"100vh",maxWidth:430,margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,direction:isRTL?"rtl":"ltr"}}>
+      <style>{css}</style>
+      <div style={{fontSize:72,marginBottom:24,animation:"float 2s ease-in-out infinite"}}>🧠</div>
+      <div style={{fontSize:20,fontWeight:800,marginBottom:8,textAlign:"center"}}>{t.analyzing}</div>
+      <div style={{fontSize:14,color:C.muted,marginBottom:40,textAlign:"center"}}>
+        {lang==="ar"?`مرحباً ${profile.name}! جاري حساب خطتك المثالية...`:`Hello ${profile.name}! Calculating your perfect plan...`}
+      </div>
+      {/* Progress bar */}
+      <div style={{width:"100%",maxWidth:280,height:8,borderRadius:4,background:C.surf2,overflow:"hidden",marginBottom:12}}>
+        <div style={{height:"100%",width:`${analyzeProgress}%`,background:`linear-gradient(90deg,${C.accent},${C.accent2})`,borderRadius:4,transition:"width .3s ease"}}/>
+      </div>
+      <div style={{fontSize:13,fontWeight:700,color:C.accent}}>{analyzeProgress}%</div>
+      <div style={{marginTop:32,display:"flex",gap:20,flexWrap:"wrap",justifyContent:"center"}}>
+        {(lang==="ar"?["حساب BMR ✓","تحليل الهدف ✓","توزيع المغذيات ✓","توليد الخطة..."]
+          :["Calculating BMR ✓","Analyzing goal ✓","Macro distribution ✓","Generating plan..."]).map((s,i)=>(
+          <div key={i} style={{fontSize:12,color:analyzeProgress>i*25?C.accent:C.muted,fontWeight:600,transition:"color .3s",animation:analyzeProgress>i*25?"fadeIn .4s ease":""}}>{s}</div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ════════════════════════════════════════════════════════════════
+  // SCREEN: RESULT (AI-generated plan summary)
+  // ════════════════════════════════════════════════════════════════
+  if(screen==="result") return(
+    <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",background:C.bg,color:C.text,minHeight:"100vh",maxWidth:430,margin:"0 auto",direction:isRTL?"rtl":"ltr",overflowY:"auto"}}>
+      <style>{css}</style>
+      <div style={{background:`linear-gradient(135deg,${C.accent}20,${C.accent2}15)`,padding:"52px 24px 28px",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-50,right:-50,width:200,height:200,borderRadius:"50%",background:`${C.accent}12`}}/>
+        <div style={{fontSize:13,fontWeight:700,color:C.accent,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8,position:"relative"}}>✨ {t.yourPlan}</div>
+        <div style={{fontSize:26,fontWeight:800,lineHeight:1.2,position:"relative"}}>
+          {lang==="ar"?`${profile.name}، خطتك جاهزة! 🎉`:`${profile.name}, your plan is ready! 🎉`}
+        </div>
+      </div>
+
+      <div style={{padding:"20px 20px 120px"}}>
+        {/* Key metrics */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          {[
+            {icon:"🔥",l:t.res_goal_cal,v:`${plan.calGoal}`,u:"kcal",c:C.accent},
+            {icon:"💪",l:t.res_protein,v:`${plan.protein}`,u:"g",c:C.accent2},
+            {icon:"🌾",l:t.res_carbs,v:`${plan.carbs}`,u:"g",c:C.gold},
+            {icon:"🫒",l:t.res_fat,v:`${plan.fat}`,u:"g",c:"#9C27B0"},
+          ].map(m=>(
+            <div key={m.l} style={{background:C.surf,borderRadius:16,padding:"16px",border:`1px solid ${C.border}`,animation:"bounceIn .5s ease"}}>
+              <div style={{fontSize:22,marginBottom:6}}>{m.icon}</div>
+              <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:4}}>{m.l}</div>
+              <div style={{fontSize:24,fontWeight:800,color:m.c}}>{m.v}<span style={{fontSize:12,fontWeight:600,color:C.muted}}> {m.u}</span></div>
+            </div>
+          ))}
+        </div>
+
+        {/* BMI + other stats */}
+        <div style={{background:C.surf,borderRadius:16,padding:"16px",border:`1px solid ${C.border}`,marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14}}>📊 {lang==="ar"?"إحصاءاتك":"Your Stats"}</div>
+          {[
+            {l:t.res_bmr,v:`${plan.bmr} kcal`},
+            {l:t.res_tdee,v:`${plan.tdee} kcal`},
+            {l:t.res_bmi,v:`${plan.bmi} — ${t[`bmi_${plan.bmiLabel}`]||plan.bmiLabel}`},
+            {l:t.res_ideal,v:plan.idealWeight},
+            {l:t.res_water,v:`${plan.waterGoal} L`},
+            plan.weeksEst>0&&{l:t.res_time,v:lang==="ar"?`~${plan.weeksEst} أسبوع`:`~${plan.weeksEst} weeks`},
+          ].filter(Boolean).map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${C.border}`}}>
+              <span style={{fontSize:13,color:C.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700}}>{r.v}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* AI Meal Plan */}
+        {aiMealPlan&&(
+          <div style={{background:C.surf,borderRadius:16,padding:"16px",border:`1px solid ${C.border}`,marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14}}>
+              🍽️ {lang==="ar"?"خطة وجبات اليوم — من الذكاء الاصطناعي":"Today's AI Meal Plan"}
+            </div>
+            {["breakfast","lunch","dinner","snack"].map(k=>{
+              const m=aiMealPlan[k]; if(!m)return null;
+              const mLabel = {
+                breakfast:lang==="ar"?"🌅 الإفطار":"🌅 Breakfast",
+                lunch:lang==="ar"?"☀️ الغداء":"☀️ Lunch",
+                dinner:lang==="ar"?"🌙 العشاء":"🌙 Dinner",
+                snack:lang==="ar"?"🍎 سناك":"🍎 Snack",
+              }[k];
+              return(
+                <div key={k} style={{marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:11,color:C.muted,fontWeight:700,marginBottom:6}}>{mLabel}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{m.emoji} {m.name}</div>
+                      {m.items?.map((it,i)=><div key={i} style={{fontSize:12,color:C.muted,marginBottom:2}}>• {it}</div>)}
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+                      <div style={{fontSize:16,fontWeight:800,color:C.accent}}>{m.calories}</div>
+                      <div style={{fontSize:10,color:C.muted}}>kcal</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {aiMealPlan.tips&&(
+              <div>
+                <div style={{fontSize:11,color:C.muted,fontWeight:700,marginBottom:8}}>{lang==="ar"?"💡 نصائح مخصصة لك":"💡 Personalized Tips"}</div>
+                {aiMealPlan.tips.map((tip,i)=>(
+                  <div key={i} style={{fontSize:12,color:C.text,marginBottom:6,display:"flex",gap:8,alignItems:"flex-start"}}>
+                    <span style={{color:C.accent,fontWeight:700,flexShrink:0}}>✓</span>{tip}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <button onClick={()=>setScreen("app")} style={btn()}>
+          🚀 {t.startApp}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ════════════════════════════════════════════════════════════════
+  // SCREEN: MAIN APP
+  // ════════════════════════════════════════════════════════════════
+  const insight = AI_INSIGHTS[insightIdx];
+  const WEEK_CAL_FINAL = [1820,2150,1680,1950,2200,1750,Math.max(200,Math.round(totalCal))];
+
+  const HomeTab=()=>(
+    <div style={{padding:"0 16px 100px",animation:"fadeUp .4s ease"}}>
+      <div style={{padding:"52px 0 18px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <div style={{fontSize:13,color:C.muted,fontWeight:500}}>{greeting} 👋</div>
+          <div style={{fontSize:26,fontWeight:800,marginTop:2}}>{profile.name||"You"}</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <div style={{background:C.accentBg,color:C.accent,borderRadius:20,padding:"6px 12px",fontSize:12,fontWeight:700,border:`1px solid ${C.accent}30`}}>🔥 7 {t.streak}</div>
+          <button onClick={()=>setModal("settings")} style={{width:40,height:40,borderRadius:12,background:C.surf,border:`1px solid ${C.border}`,cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>⚙️</button>
+        </div>
+      </div>
+
+      <div style={{...card,display:"flex",alignItems:"center",gap:14,padding:"18px"}}>
+        <div style={{position:"relative",flexShrink:0}}>
+          <CalRing val={totalCal} goal={plan.calGoal}/>
+          <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",textAlign:"center"}}>
+            <div style={{fontSize:26,fontWeight:800,lineHeight:1}}>{Math.round(totalCal)}</div>
+            <div style={{fontSize:10,color:C.muted,fontWeight:600,marginTop:2}}>kcal</div>
+          </div>
+        </div>
+        <div style={{flex:1}}>
+          {[{l:t.goal,v:plan.calGoal,c:C.muted},{l:t.consumed,v:Math.round(totalCal),c:C.accent},{l:t.remaining,v:Math.max(0,plan.calGoal-Math.round(totalCal)),c:C.accent2},{l:t.burned,v:320,c:C.gold}].map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <span style={{fontSize:12,color:C.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700,color:r.c}}>{r.v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",color:C.muted,marginBottom:14,textTransform:"uppercase"}}>MACROS</div>
+        <MacroBar label={t.protein} val={totalP} goal={plan.protein} color={C.accent2}/>
+        <MacroBar label={t.carbs} val={totalC} goal={plan.carbs} color={C.gold}/>
+        <MacroBar label={t.fat} val={totalF} goal={plan.fat} color="#9C27B0"/>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:12}}>
+        {[
+          {icon:"📷",label:t.camera,action:openCamera,bg:C.accentBg,c:C.accent},
+          {icon:"🎙️",label:t.voice,action:openVoice,bg:`${C.accent2}18`,c:C.accent2},
+          {icon:"🔍",label:t.scan,action:()=>setModal("search"),bg:`${C.gold}18`,c:C.gold},
+          {icon:"✏️",label:t.manual,action:()=>setModal("search"),bg:"rgba(156,39,176,0.1)",c:"#9C27B0"},
+        ].map(b=>(
+          <button key={b.label} onClick={b.action} style={{background:b.bg,border:"none",borderRadius:14,padding:"14px 6px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:b.c}}>
+            <span style={{fontSize:24}}>{b.icon}</span>
+            <span style={{fontSize:10,fontWeight:700}}>{b.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{...card,background:`linear-gradient(135deg,${C.accentBg},${C.surf})`,border:`1px solid ${C.accent}20`,display:"flex",gap:14,alignItems:"flex-start",transition:"all .5s ease"}}>
+        <span style={{fontSize:26}}>{insight.icon}</span>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:C.accent,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>{t[insight.type]||t.insight}</div>
+          <div style={{fontSize:13,lineHeight:1.6}}>{insight.text}</div>
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>{t.weeklyReport}</div>
+        <div style={{display:"flex",alignItems:"flex-end",gap:7,height:76}}>
+          {WEEK_CAL_FINAL.map((cal,i)=>{
+            const p2=pct(cal,plan.calGoal),isT=i===6,ov=cal>plan.calGoal;
+            return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+              <div style={{width:"100%",height:60,borderRadius:7,background:C.surf2,position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",bottom:0,width:"100%",height:`${p2}%`,borderRadius:7,background:isT?`linear-gradient(to top,${C.accent},#81C784)`:ov?`${C.red}55`:`${C.accent}45`,transition:"height 1s cubic-bezier(.16,1,.3,1)"}}/>
+              </div>
+              <span style={{fontSize:9,color:isT?C.accent:C.muted,fontWeight:isT?700:500}}>{isRTL?WEEK_DAYS_AR[i]:WEEK_DAYS_EN[i]}</span>
+            </div>);
+          })}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700}}>💧 {t.water}</div>
+          <span style={{fontSize:12,color:C.accent2,fontWeight:700}}>{water}/{Math.ceil(plan.waterGoal*4)} {t.glasses}</span>
+        </div>
+        <div style={{display:"flex",gap:5,marginBottom:12}}>
+          {Array(Math.ceil(plan.waterGoal*4)).fill(0).map((_,i)=>(
+            <div key={i} onClick={()=>setWater(i+1)} style={{flex:1,height:32,borderRadius:7,cursor:"pointer",background:i<water?C.accent2:C.surf2,transition:"background .2s"}}/>
+          ))}
+        </div>
+        <button onClick={()=>setWater(w=>Math.min(Math.ceil(plan.waterGoal*4),w+1))} style={{...btn(`${C.accent2}15`,C.accent2)}}>{t.addWater}</button>
+      </div>
+    </div>
+  );
+
+  const DiaryTab=()=>(
+    <div style={{padding:"0 16px 100px",animation:"fadeUp .4s ease"}}>
+      <div style={{padding:"52px 0 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:22,fontWeight:800}}>{t.diary}</div>
+        <button onClick={()=>setModal("search")} style={{background:C.accent,color:"#fff",border:"none",borderRadius:12,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>+ {t.addFood}</button>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+        {["breakfast","lunch","dinner","snacks"].map(m=>(
+          <button key={m} onClick={()=>setSelectedMeal(m)} style={{flexShrink:0,padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",background:selectedMeal===m?C.accent:C.surf2,color:selectedMeal===m?"#fff":C.muted,fontSize:12,fontWeight:600}}>
+            {{breakfast:"🌅",lunch:"☀️",dinner:"🌙",snacks:"🍎"}[m]} {t[m]}
+          </button>
+        ))}
+      </div>
+      {loggedFoods.length===0&&(
+        <div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
+          <div style={{fontSize:48,marginBottom:12}}>🍽️</div>
+          <div style={{fontSize:15,fontWeight:600}}>{lang==="ar"?"لم تسجل وجبات بعد":"No meals logged yet"}</div>
+          <div style={{fontSize:13,marginTop:4}}>{lang==="ar"?"ابدأ بإضافة وجبتك الأولى":"Start by adding your first meal"}</div>
+        </div>
+      )}
+      {["breakfast","lunch","dinner","snacks"].map(meal=>{
+        const foods=loggedFoods.filter(f=>f.meal===meal);
+        if(!foods.length)return null;
+        const mc=foods.reduce((s,f)=>s+f.cal*f.qty,0);
+        return(<div key={meal} style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,letterSpacing:"0.07em",color:C.muted,textTransform:"uppercase",marginBottom:8}}>
+            <span>{{breakfast:"🌅",lunch:"☀️",dinner:"🌙",snacks:"🍎"}[meal]} {t[meal]}</span>
+            <span style={{color:C.accent}}>{Math.round(mc)} kcal</span>
+          </div>
+          {foods.map(f=>(
+            <div key={f.lid} style={{...card,display:"flex",alignItems:"center",gap:12,padding:"12px 14px",marginBottom:8}}>
+              <div style={{width:42,height:42,borderRadius:12,background:C.accentBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{f.emoji}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{foodName(f)}</div>
+                <div style={{fontSize:11,color:C.muted,marginTop:2}}>{f.srv} × {f.qty}</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:14,fontWeight:800}}>{Math.round(f.cal*f.qty)}</div>
+                <div style={{fontSize:10,color:C.muted}}>kcal</div>
+              </div>
+              <button onClick={()=>removeFood(f.lid)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:20,padding:"4px 2px"}}>×</button>
+            </div>
+          ))}
+        </div>);
+      })}
+    </div>
+  );
+
+  const CoachTab=()=>(
+    <div style={{padding:"0 16px 100px",animation:"fadeUp .4s ease"}}>
+      <div style={{padding:"52px 0 18px"}}><div style={{fontSize:22,fontWeight:800}}>{t.aiCoach}</div><div style={{fontSize:13,color:C.muted,marginTop:4}}>Powered by AI · {lang==="ar"?`مرحباً ${profile.name}`:`Hello ${profile.name}`}</div></div>
+      {AI_INSIGHTS.map((ins,i)=>(
+        <div key={i} style={{...card,display:"flex",gap:14,alignItems:"flex-start",borderLeft:`3px solid ${ins.type==="warning"?C.red:ins.type==="suggestion"?C.gold:C.accent}`,marginBottom:10}}>
+          <span style={{fontSize:24}}>{ins.icon}</span>
+          <div><div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:ins.type==="warning"?C.red:ins.type==="suggestion"?C.gold:C.accent,marginBottom:4}}>{t[ins.type]||t.insight}</div>
+          <div style={{fontSize:13,lineHeight:1.6}}>{ins.text}</div></div>
+        </div>
+      ))}
+      {aiMealPlan&&aiMealPlan.tips&&(
+        <div style={card}>
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14}}>💡 {lang==="ar"?"نصائح الذكاء الاصطناعي الخاصة بك":"Your AI Tips"}</div>
+          {aiMealPlan.tips.map((tip,i)=>(
+            <div key={i} style={{display:"flex",gap:10,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+              <span style={{color:C.accent,fontWeight:700,flexShrink:0}}>✓</span>
+              <span style={{fontSize:13}}>{tip}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const PlansTab=()=>(
+    <div style={{padding:"0 16px 100px",animation:"fadeUp .4s ease"}}>
+      <div style={{padding:"52px 0 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:22,fontWeight:800}}>{t.mealPlan}</div>
+          <div style={{fontSize:13,color:C.muted,marginTop:2}}>{lang==="ar"?"مولّدة بالذكاء الاصطناعي خصيصاً لك":"AI-generated just for you"}</div>
+        </div>
+        <button onClick={async()=>{
+          setAiPlanLoading(true);
+          try{const p=await generateAIMealPlan(profile,plan,lang);setAiMealPlan(p);}catch(e){}
+          setAiPlanLoading(false);
+        }} style={{background:C.accentBg,color:C.accent,border:`1px solid ${C.accent}30`,borderRadius:12,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+          {aiPlanLoading?"⏳...":"✨ "+t.regenerate}
+        </button>
+      </div>
+      {aiMealPlan?(
+        <div>
+          <div style={{...card,background:`linear-gradient(135deg,${C.accentBg},${C.surf})`,border:`1px solid ${C.accent}25`,marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{t.aiPlanReady}</div>
+            <div style={{fontSize:12,color:C.muted}}>{lang==="ar"?`هدف السعرات: ${plan.calGoal} kcal | بروتين: ${plan.protein}g`:`Calorie goal: ${plan.calGoal} kcal | Protein: ${plan.protein}g`}</div>
+          </div>
+          {["breakfast","lunch","dinner","snack"].map(k=>{
+            const m=aiMealPlan[k];if(!m)return null;
+            const lbl={breakfast:lang==="ar"?"🌅 الإفطار":"🌅 Breakfast",lunch:lang==="ar"?"☀️ الغداء":"☀️ Lunch",dinner:lang==="ar"?"🌙 العشاء":"🌙 Dinner",snack:lang==="ar"?"🍎 سناك":"🍎 Snack"}[k];
+            return(
+              <div key={k} style={{...card,marginBottom:10}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>{lbl}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>{m.emoji} {m.name}</div>
+                    {m.items?.map((it,i)=><div key={i} style={{fontSize:12,color:C.muted,marginBottom:4}}>• {it}</div>)}
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:20,fontWeight:800,color:C.accent}}>{m.calories}</div>
+                    <div style={{fontSize:10,color:C.muted}}>kcal</div>
+                    <div style={{fontSize:10,color:C.accent2,marginTop:4}}>P:{m.protein}g</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:12}}>
+                  {[{l:"P",v:m.protein,c:C.accent2},{l:"C",v:m.carbs,c:C.gold},{l:"F",v:m.fat,c:"#9C27B0"}].map(n=>(
+                    <div key={n.l} style={{flex:1,background:C.surf2,borderRadius:8,padding:"6px",textAlign:"center"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:n.c}}>{n.v}g</div>
+                      <div style={{fontSize:9,color:C.muted}}>{n.l}</div>
+                    </div>
+                  ))}
+                  <div style={{flex:1,background:C.accentBg,borderRadius:8,padding:"6px",textAlign:"center"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:C.accent}}>{m.calories}</div>
+                    <div style={{fontSize:9,color:C.muted}}>kcal</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ):(
+        <div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
+          <div style={{fontSize:48,marginBottom:12}}>🤖</div>
+          <div style={{fontSize:15,fontWeight:600}}>{lang==="ar"?"اضغط على توليد خطة":"Press Generate Plan"}</div>
+        </div>
+      )}
+    </div>
+  );
+
+  const ProfileTab=()=>(
+    <div style={{padding:"0 16px 100px",animation:"fadeUp .4s ease"}}>
+      <div style={{padding:"52px 0 18px"}}><div style={{fontSize:22,fontWeight:800}}>{t.profile}</div></div>
+      <div style={{...card,textAlign:"center",padding:"24px 16px",marginBottom:12}}>
+        <div style={{width:80,height:80,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},#81C784)`,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36}}>👤</div>
+        <div style={{fontSize:20,fontWeight:800}}>{profile.name}</div>
+        <div style={{fontSize:12,color:C.muted,marginTop:4}}>{lang==="ar"?`${profile.age} سنة · ${profile.gender==="male"?"ذكر":"أنثى"} · ${t.goalOptions?.[profile.goal]||profile.goal}`:`${profile.age} yrs · ${profile.gender} · ${profile.goal}`}</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+        {[
+          {l:lang==="ar"?"الوزن":"Weight",v:`${profile.weight} kg`},
+          {l:lang==="ar"?"الطول":"Height",v:`${profile.height} cm`},
+          {l:"BMI",v:`${plan.bmi}`},
+          {l:"BMR",v:`${plan.bmr} kcal`},
+          {l:"TDEE",v:`${plan.tdee} kcal`},
+          {l:lang==="ar"?"هدف السعرات":"Cal Goal",v:`${plan.calGoal} kcal`},
+        ].map(s=>(
+          <div key={s.l} style={{background:C.surf,borderRadius:14,padding:"14px",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:11,color:C.muted,fontWeight:600,marginBottom:4}}>{s.l}</div>
+            <div style={{fontSize:15,fontWeight:700}}>{s.v}</div>
+          </div>
+        ))}
+      </div>
+      <button onClick={()=>{setScreen("onboarding");setObStep(0);setLoggedFoods([]);setWater(0);setCalcResult(null);setAiMealPlan(null);}} style={{...btn(C.surf2,C.muted),border:`1px solid ${C.border}`}}>
+        {lang==="ar"?"🔄 إعادة التقييم":"🔄 Retake Assessment"}
+      </button>
+    </div>
+  );
+
+  // ─── MODALS ───────────────────────────────────────────────────────────────────
+  const CameraModal=()=>(
+    <div style={{position:"fixed",inset:0,background:"#000",zIndex:600,display:"flex",flexDirection:"column"}}>
+      <canvas ref={canvasRef} style={{display:"none"}}/>
+      <div style={{position:"absolute",top:0,left:0,right:0,padding:"48px 16px 16px",background:"linear-gradient(to bottom,rgba(0,0,0,.75),transparent)",zIndex:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <button onClick={()=>{stopCamera();setModal(null);}} style={{width:40,height:40,borderRadius:20,background:"rgba(255,255,255,.18)",backdropFilter:"blur(8px)",border:"none",color:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+        <span style={{color:"#fff",fontSize:15,fontWeight:700}}>{t.cameraTitle}</span>
+        <div style={{display:"flex",gap:3,background:"rgba(255,255,255,.15)",borderRadius:10,padding:3}}>
+          {["photo","barcode"].map(m=>(
+            <button key={m} onClick={()=>setCamMode(m)} style={{background:camMode===m?"rgba(255,255,255,.9)":"transparent",border:"none",borderRadius:8,padding:"5px 10px",cursor:"pointer",color:camMode===m?"#000":"rgba(255,255,255,.8)",fontSize:11,fontWeight:600}}>
+              {m==="photo"?t.photoMode:t.barcodeMode}
+            </button>
+          ))}
+        </div>
+      </div>
+      {camError?(
+        <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:32}}>
+          <span style={{fontSize:56}}>📷</span>
+          <div style={{color:"#fff",fontSize:17,fontWeight:700,textAlign:"center"}}>{t.permissionNeeded}</div>
+          <div style={{color:"rgba(255,255,255,.6)",fontSize:13,textAlign:"center",lineHeight:1.6,maxWidth:280}}>{camError}</div>
+          <button onClick={openCamera} style={{background:C.accent,color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:14,fontWeight:700,cursor:"pointer"}}>Try Again</button>
+        </div>
+      ):(
+        <div style={{flex:1,position:"relative",overflow:"hidden"}}>
+          {!camCapture&&<video ref={videoRef} autoPlay playsInline muted style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>}
+          {camCapture&&<img src={camCapture} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>}
+          {!camResult&&!camAnalyzing&&!camCapture&&(
+            <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+              <div style={{width:256,height:256,position:"relative"}}>
+                {[[0,0],[0,"auto"],["auto",0],["auto","auto"]].map((_,i)=>(
+                  <div key={i} style={{position:"absolute",top:i<2?-1:"auto",bottom:i>=2?-1:"auto",left:i%2===0?-1:"auto",right:i%2===1?-1:"auto",width:28,height:28,borderTop:i<2?`3px solid ${C.accent}`:"none",borderBottom:i>=2?`3px solid ${C.accent}`:"none",borderLeft:i%2===0?`3px solid ${C.accent}`:"none",borderRight:i%2===1?`3px solid ${C.accent}`:"none"}}/>
+                ))}
+                <div style={{position:"absolute",left:0,right:0,height:3,background:`linear-gradient(90deg,transparent,${C.accent},transparent)`,animation:"scanLine 2s ease-in-out infinite",borderRadius:2}}/>
+              </div>
+            </div>
+          )}
+          {camAnalyzing&&(
+            <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.65)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20}}>
+              <div style={{width:64,height:64,border:`4px solid rgba(255,255,255,.2)`,borderTop:`4px solid ${C.accent}`,borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
+              <div style={{color:"#fff",fontSize:16,fontWeight:600}}>{t.analyzing2}</div>
+              <div style={{display:"flex",gap:8}}>{[0,1,2].map(i=><div key={i} style={{width:8,height:8,borderRadius:"50%",background:C.accent,animation:`pulse2 1.2s ease ${i*.2}s infinite`}}/>)}</div>
+            </div>
+          )}
+          {camResult&&!camAnalyzing&&(
+            <div style={{position:"absolute",bottom:0,left:0,right:0,background:C.surf,borderRadius:"24px 24px 0 0",padding:"24px 20px 36px",animation:"slideUp .35s cubic-bezier(.16,1,.3,1)"}}>
+              <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16}}>
+                <div style={{width:56,height:56,borderRadius:14,background:C.accentBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30}}>{camResult.emoji}</div>
+                <div><div style={{fontSize:11,color:C.accent,fontWeight:700,letterSpacing:"0.1em",marginBottom:2}}>✓ {t.detected}</div><div style={{fontSize:17,fontWeight:800}}>{foodName(camResult)}</div></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
+                {[{l:t.calories,v:camResult.cal,u:"kcal",c:C.accent},{l:t.protein,v:camResult.p,u:"g",c:C.accent2},{l:t.carbs,v:camResult.c,u:"g",c:C.gold},{l:t.fat,v:camResult.f,u:"g",c:"#9C27B0"}].map(n=>(
+                  <div key={n.l} style={{background:C.surf2,borderRadius:10,padding:"10px 6px",textAlign:"center"}}>
+                    <div style={{fontSize:16,fontWeight:800,color:n.c}}>{n.v}</div><div style={{fontSize:9,color:C.muted}}>{n.u}</div><div style={{fontSize:9,color:C.muted,marginTop:1}}>{n.l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                {["breakfast","lunch","dinner","snacks"].map(m=>(
+                  <button key={m} onClick={()=>setSelectedMeal(m)} style={{flex:1,padding:"7px 2px",borderRadius:10,border:`1px solid ${selectedMeal===m?C.accent:C.border}`,background:selectedMeal===m?C.accentBg:"transparent",cursor:"pointer",fontSize:9,fontWeight:600,color:selectedMeal===m?C.accent:C.muted}}>
+                    {{breakfast:"🌅",lunch:"☀️",dinner:"🌙",snacks:"🍎"}[m]}<br/>{t[m]}
+                  </button>
+                ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <button onClick={()=>{setCamResult(null);setCamCapture(null);}} style={{background:C.surf2,color:C.text,border:"none",borderRadius:12,padding:"13px",fontSize:14,fontWeight:700,cursor:"pointer"}}>🔄 {t.cancel}</button>
+                <button onClick={()=>logFood(camResult)} style={{background:C.accent,color:"#fff",border:"none",borderRadius:12,padding:"13px",fontSize:14,fontWeight:700,cursor:"pointer"}}>✓ {t.logFood}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {!camResult&&!camAnalyzing&&!camError&&(
+        <div style={{position:"absolute",bottom:40,left:0,right:0,display:"flex",justifyContent:"center"}}>
+          <button onClick={captureAndAnalyze} style={{width:76,height:76,borderRadius:"50%",border:"4px solid rgba(255,255,255,.9)",background:"rgba(255,255,255,.25)",backdropFilter:"blur(10px)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <div style={{width:56,height:56,borderRadius:"50%",background:"#fff"}}/>
+          </button>
+        </div>
+      )}
+      {!camResult&&!camAnalyzing&&!camError&&<div style={{position:"absolute",bottom:128,left:0,right:0,textAlign:"center",color:"rgba(255,255,255,.7)",fontSize:12,fontWeight:500}}>{t.pointCamera}</div>}
+    </div>
+  );
+
+  const VoiceModal=()=>(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:500,display:"flex",alignItems:"flex-end"}} onClick={e=>{if(e.target===e.currentTarget){stopListening();setModal(null);}}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.surf,borderRadius:"24px 24px 0 0",padding:"24px 20px 48px",animation:"slideUp .3s cubic-bezier(.16,1,.3,1)"}}>
+        <div style={{width:40,height:4,background:C.border,borderRadius:2,margin:"0 auto 20px"}}/>
+        <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>{t.voice}</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:24}}>{lang==="ar"?"قل مثلاً: 'بيضتين وشريحة خبز أسمر'":"e.g. \"Two eggs and a slice of bread\""}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:3,height:48,marginBottom:24}}>
+          {Array(20).fill(0).map((_,i)=>(
+            <div key={i} style={{width:3,height:micListening?`${Math.max(4,Math.abs(Math.sin(i*0.5+Date.now()/200))*(micVolume/6))}px`:"4px",background:micListening?C.accent:C.border,borderRadius:2,transition:"height .05s ease",maxHeight:44,minHeight:4}}/>
+          ))}
+        </div>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
+          <div style={{position:"relative"}}>
+            {micListening&&<><div style={{position:"absolute",inset:-24,borderRadius:"50%",background:`${C.red}15`,animation:"rippleOut 1.5s ease infinite"}}/><div style={{position:"absolute",inset:-14,borderRadius:"50%",background:`${C.red}20`,animation:"rippleOut 1.5s ease .4s infinite"}}/></>}
+            <button onClick={micListening?stopListening:startListening} style={{width:88,height:88,borderRadius:"50%",background:micListening?C.red:C.accent,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,boxShadow:`0 8px 28px ${micListening?C.red:C.accent}45`,position:"relative",zIndex:1}}>
+              {micListening?"⏹":"🎙️"}
+            </button>
+          </div>
+        </div>
+        <div style={{textAlign:"center",minHeight:24,marginBottom:16}}>
+          {micListening&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,color:C.red}}><div style={{width:7,height:7,borderRadius:"50%",background:C.red,animation:"blink 1s infinite"}}/><span style={{fontSize:13,fontWeight:600}}>{t.listening}</span></div>}
+          {micTranscript&&!micListening&&<div style={{fontSize:13,color:C.muted,fontStyle:"italic"}}>"{micTranscript}"</div>}
+          {micError&&<div style={{fontSize:13,color:C.red,lineHeight:1.5}}>{micError}</div>}
+          {!micListening&&!micTranscript&&!micError&&<div style={{fontSize:12,color:C.muted}}>{t.tapToSpeak}</div>}
+        </div>
+        {micResult&&(
+          <div style={{background:C.surf2,borderRadius:14,padding:"14px",border:`1px solid ${C.accent}30`,animation:"fadeUp .3s ease"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.accent,marginBottom:10,letterSpacing:"0.08em"}}>✓ {t.detected.toUpperCase()}</div>
+            <FoodItem food={micResult} showAdd={false}/>
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              {["breakfast","lunch","dinner","snacks"].map(m=>(
+                <button key={m} onClick={()=>logFood(micResult,1,m)} style={{flex:1,padding:"8px 3px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontSize:9,fontWeight:600,color:C.muted}}>
+                  {{breakfast:"🌅",lunch:"☀️",dinner:"🌙",snacks:"🍎"}[m]}<br/>{t[m]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const SearchModal=()=>(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"flex-end"}} onClick={e=>{if(e.target===e.currentTarget){setModal(null);setSearchQ("");}}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.surf,borderRadius:"24px 24px 0 0",padding:"20px 16px 40px",maxHeight:"85vh",display:"flex",flexDirection:"column",animation:"slideUp .3s cubic-bezier(.16,1,.3,1)"}}>
+        <div style={{width:40,height:4,background:C.border,borderRadius:2,margin:"0 auto 14px"}}/>
+        <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto",paddingBottom:4}}>
+          {["breakfast","lunch","dinner","snacks"].map(m=>(
+            <button key={m} onClick={()=>setSelectedMeal(m)} style={{flexShrink:0,padding:"6px 12px",borderRadius:16,border:"none",cursor:"pointer",background:selectedMeal===m?C.accent:C.surf2,color:selectedMeal===m?"#fff":C.muted,fontSize:11,fontWeight:600}}>
+              {{breakfast:"🌅",lunch:"☀️",dinner:"🌙",snacks:"🍎"}[m]} {t[m]}
+            </button>
+          ))}
+        </div>
+        <div style={{position:"relative",marginBottom:12}}>
+          <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:15,color:C.muted}}>🔍</span>
+          <input autoFocus placeholder={t.searchFoods} value={searchQ} onChange={e=>setSearchQ(e.target.value)}
+            style={{width:"100%",padding:"12px 12px 12px 42px",border:`1px solid ${C.border}`,borderRadius:12,background:C.surf2,color:C.text,fontSize:14,outline:"none",direction:isRTL?"rtl":"ltr"}}/>
+        </div>
+        <div style={{overflowY:"auto",flex:1}}>
+          {filteredFoods.length===0
+            ?<div style={{textAlign:"center",padding:"32px 0",color:C.muted}}><div style={{fontSize:32,marginBottom:8}}>🔍</div><div style={{fontSize:14,fontWeight:600}}>{t.noFoodsFound}</div></div>
+            :filteredFoods.map(f=><FoodItem key={f.id} food={f}/>)
+          }
+        </div>
+      </div>
+    </div>
+  );
+
+  const FoodDetailModal=()=>{
+    if(!detailFood)return null;
+    return(
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:600,display:"flex",alignItems:"flex-end"}} onClick={e=>{if(e.target===e.currentTarget)setModal("search");}}>
+        <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.surf,borderRadius:"24px 24px 0 0",padding:"24px 20px 48px",animation:"slideUp .3s cubic-bezier(.16,1,.3,1)"}}>
+          <div style={{width:40,height:4,background:C.border,borderRadius:2,margin:"0 auto 20px"}}/>
+          <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:20}}>
+            <div style={{width:60,height:60,borderRadius:16,background:C.accentBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>{detailFood.emoji}</div>
+            <div><div style={{fontSize:17,fontWeight:800}}>{foodName(detailFood)}</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>{detailFood.srv}</div></div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20}}>
+            {[{l:t.calories,v:Math.round(detailFood.cal*detailQty),u:"kcal",c:C.accent},{l:t.protein,v:Math.round(detailFood.p*detailQty*10)/10,u:"g",c:C.accent2},{l:t.carbs,v:Math.round(detailFood.c*detailQty*10)/10,u:"g",c:C.gold},{l:t.fat,v:Math.round(detailFood.f*detailQty*10)/10,u:"g",c:"#9C27B0"}].map(n=>(
+              <div key={n.l} style={{background:C.surf2,borderRadius:10,padding:"12px 6px",textAlign:"center"}}>
+                <div style={{fontSize:17,fontWeight:800,color:n.c}}>{n.v}</div><div style={{fontSize:9,color:C.muted}}>{n.u}</div><div style={{fontSize:9,color:C.muted,marginTop:2}}>{n.l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:20,marginBottom:20}}>
+            <button onClick={()=>setDetailQty(q=>Math.max(0.5,q-0.5))} style={{width:42,height:42,borderRadius:"50%",border:`1px solid ${C.border}`,background:C.surf2,fontSize:22,cursor:"pointer",color:C.text}}>−</button>
+            <div style={{textAlign:"center"}}><div style={{fontSize:24,fontWeight:800}}>{detailQty}</div><div style={{fontSize:11,color:C.muted}}>{t.serving}</div></div>
+            <button onClick={()=>setDetailQty(q=>q+0.5)} style={{width:42,height:42,borderRadius:"50%",background:C.accent,border:"none",fontSize:22,cursor:"pointer",color:"#fff"}}>+</button>
+          </div>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            {["breakfast","lunch","dinner","snacks"].map(m=>(
+              <button key={m} onClick={()=>setSelectedMeal(m)} style={{flex:1,padding:"7px 3px",borderRadius:10,border:`1px solid ${selectedMeal===m?C.accent:C.border}`,background:selectedMeal===m?C.accentBg:"transparent",cursor:"pointer",fontSize:9,fontWeight:600,color:selectedMeal===m?C.accent:C.muted}}>
+                {{breakfast:"🌅",lunch:"☀️",dinner:"🌙",snacks:"🍎"}[m]}<br/>{t[m]}
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>logFood(detailFood,detailQty)} style={btn()}>+ {t.add}</button>
+        </div>
+      </div>
+    );
+  };
+
+  const SettingsModal=()=>(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:500,display:"flex",alignItems:"flex-end"}} onClick={e=>{if(e.target===e.currentTarget)setModal(null);}}>
+      <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:C.surf,borderRadius:"24px 24px 0 0",padding:"24px 20px 48px",animation:"slideUp .3s cubic-bezier(.16,1,.3,1)"}}>
+        <div style={{width:40,height:4,background:C.border,borderRadius:2,margin:"0 auto 20px"}}/>
+        <div style={{fontSize:18,fontWeight:700,marginBottom:24}}>⚙️ {t.settings}</div>
+        {[{label:t.language,options:[{v:"ar",l:"🇪🇬 العربية"},{v:"en",l:"🇺🇸 English"}],cur:lang,set:setLang},{label:t.theme,options:[{v:"light",l:"☀️ Light"},{v:"dark",l:"🌙 Dark"}],cur:theme,set:setTheme}].map(g=>(
+          <div key={g.label} style={{marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>{g.label}</div>
+            <div style={{display:"flex",gap:8}}>
+              {g.options.map(o=>(
+                <button key={o.v} onClick={()=>g.set(o.v)} style={{padding:"10px 18px",borderRadius:12,cursor:"pointer",border:`2px solid ${g.cur===o.v?C.accent:C.border}`,background:g.cur===o.v?C.accentBg:"transparent",color:g.cur===o.v?C.accent:C.muted,fontWeight:600,fontSize:13}}>{o.l}</button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const navItems=[{id:"home",icon:"🏠",label:t.home},{id:"diary",icon:"📔",label:t.diary},{id:"coach",icon:"🤖",label:t.coach},{id:"plans",icon:"📋",label:t.plans},{id:"profile",icon:"👤",label:t.profile}];
+
+  return(
+    <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",background:C.bg,color:C.text,minHeight:"100vh",maxWidth:430,margin:"0 auto",position:"relative",overflow:"hidden",direction:isRTL?"rtl":"ltr"}}>
+      <style>{css}</style>
+      <div style={{height:"100vh",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch"}}>
+        {tab==="home"&&<HomeTab/>}
+        {tab==="diary"&&<DiaryTab/>}
+        {tab==="coach"&&<CoachTab/>}
+        {tab==="plans"&&<PlansTab/>}
+        {tab==="profile"&&<ProfileTab/>}
+      </div>
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:C.nav,borderTop:`1px solid ${C.border}`,display:"flex",padding:"8px 0 20px",backdropFilter:"blur(20px)",zIndex:200}}>
+        {navItems.map(n=>(
+          <button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"6px 4px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?C.accent:C.muted,transition:"color .15s"}}>
+            <span style={{fontSize:21}}>{n.icon}</span>
+            <span style={{fontSize:9,fontWeight:tab===n.id?700:500}}>{n.label}</span>
+            {tab===n.id&&<div style={{width:4,height:4,borderRadius:"50%",background:C.accent,marginTop:1}}/>}
+          </button>
+        ))}
+      </div>
+      {modal==="camera"&&<CameraModal/>}
+      {modal==="voice"&&<VoiceModal/>}
+      {modal==="search"&&<SearchModal/>}
+      {modal==="foodDetail"&&<FoodDetailModal/>}
+      {modal==="settings"&&<SettingsModal/>}
+    </div>
+  );
+}
+
+    // Mount app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+
+    // Hide loading screen
+    setTimeout(() => {
+      const loader = document.getElementById('loading');
+      if(loader){ loader.classList.add('hide'); setTimeout(()=>loader.remove(),600); }
+    }, 800);
+
+  </script>
+
+  <!-- Service Worker for offline support -->
+  <script>
+    if('serviceWorker' in navigator){
+      const swCode = `
+        const CACHE = 'nutriai-v1';
+        const URLS = [location.href];
+        self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(URLS))));
+        self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
+      `;
+      const blob = new Blob([swCode], {type:'application/javascript'});
+      const url = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(url).catch(()=>{});
+    }
+  </script>
+</body>
+</html>
